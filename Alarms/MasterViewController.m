@@ -8,6 +8,7 @@
 
 #import "MasterViewController.h"
 #import "DetailViewController.h"
+#import "NotificationManager.h"
 
 @interface MasterViewController ()
 
@@ -25,12 +26,17 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    
+    
+    [NotificationManager allNotifications];
+    
     // Do any additional setup after loading the view, typically from a nib.
     self.navigationItem.leftBarButtonItem = self.editButtonItem;
 
     UIBarButtonItem *addButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAdd target:self action:@selector(insertNewObject:)];
     self.navigationItem.rightBarButtonItem = addButton;
     self.detailViewController = (DetailViewController *)[[self.splitViewController.viewControllers lastObject] topViewController];
+    
 }
 
 - (void)didReceiveMemoryWarning {
@@ -39,14 +45,27 @@
 }
 
 - (void)insertNewObject:(id)sender {
+
+    
+    AlarmDetailTVC *alarmDetailTVC = [self.storyboard instantiateViewControllerWithIdentifier:@"AlarmDetailTVC"];
+    
+    UINavigationController *navCon = [[UINavigationController alloc] initWithRootViewController:alarmDetailTVC];
+    
+    [self presentViewController:navCon animated:YES completion:nil];
+
+    
+
+}
+
+- (void)actuallyAdd{
     NSManagedObjectContext *context = [self.fetchedResultsController managedObjectContext];
     NSEntityDescription *entity = [[self.fetchedResultsController fetchRequest] entity];
     NSManagedObject *newManagedObject = [NSEntityDescription insertNewObjectForEntityForName:[entity name] inManagedObjectContext:context];
-        
+    
     // If appropriate, configure the new managed object.
     // Normally you should use accessor methods, but using KVC here avoids the need to add a custom class to the template.
     [newManagedObject setValue:[NSDate date] forKey:@"timeStamp"];
-        
+    
     // Save the context.
     NSError *error = nil;
     if (![context save:&error]) {
@@ -55,6 +74,7 @@
         NSLog(@"Unresolved error %@, %@", error, [error userInfo]);
         abort();
     }
+
 }
 
 #pragma mark - Segues
@@ -109,7 +129,7 @@
 
 - (void)configureCell:(UITableViewCell *)cell atIndexPath:(NSIndexPath *)indexPath {
     NSManagedObject *object = [self.fetchedResultsController objectAtIndexPath:indexPath];
-    cell.textLabel.text = [[object valueForKey:@"timeStamp"] description];
+//    cell.textLabel.text = [[object valueForKey:@"timeStamp"] description];
 }
 
 #pragma mark - Fetched results controller

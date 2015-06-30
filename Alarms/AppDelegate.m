@@ -5,7 +5,7 @@
 //  Created by Hijazi on 29/6/15.
 //  Copyright (c) 2015 iReka Soft. All rights reserved.
 //
-
+#import "DBConnection.h"
 #import "AppDelegate.h"
 #import "DetailViewController.h"
 #import "MasterViewController.h"
@@ -18,131 +18,128 @@
 
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    // Override point for customization after application launch.
-    UISplitViewController *splitViewController = (UISplitViewController *)self.window.rootViewController;
-    UINavigationController *navigationController = [splitViewController.viewControllers lastObject];
-    navigationController.topViewController.navigationItem.leftBarButtonItem = splitViewController.displayModeButtonItem;
-    splitViewController.delegate = self;
-
-    UINavigationController *masterNavigationController = splitViewController.viewControllers[0];
-    MasterViewController *controller = (MasterViewController *)masterNavigationController.topViewController;
-    controller.managedObjectContext = self.managedObjectContext;
+    
+    
+    // New for iOS 8 - Register the notifications
+    UIUserNotificationType types = UIUserNotificationTypeBadge | UIUserNotificationTypeSound | UIUserNotificationTypeAlert;
+    UIUserNotificationSettings *mySettings = [UIUserNotificationSettings settingsForTypes:types categories:nil];
+    [[UIApplication sharedApplication] registerUserNotificationSettings:mySettings];
+    
+    if ([launchOptions valueForKey:UIApplicationLaunchOptionsLocalNotificationKey]){
+        isJustOpened = YES;
+        localNotification = [launchOptions valueForKey:UIApplicationLaunchOptionsLocalNotificationKey];
+        
+    }
+    
+    
+    
     return YES;
 }
 
-- (void)applicationWillResignActive:(UIApplication *)application {
-    // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
-    // Use this method to pause ongoing tasks, disable timers, and throttle down OpenGL ES frame rates. Games should use this method to pause the game.
+- (void)applicationWillEnterForeground:(UIApplication *)application
+{
+    
+    NSLog(@"%s", __PRETTY_FUNCTION__);
+    application.applicationIconBadgeNumber = 0;
 }
 
-- (void)applicationDidEnterBackground:(UIApplication *)application {
-    // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
-    // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
-}
-
-- (void)applicationWillEnterForeground:(UIApplication *)application {
-    // Called as part of the transition from the background to the inactive state; here you can undo many of the changes made on entering the background.
-}
-
-- (void)applicationDidBecomeActive:(UIApplication *)application {
+- (void)applicationDidBecomeActive:(UIApplication *)application
+{
     // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+    NSLog(@"%s", __PRETTY_FUNCTION__);
+    application.applicationIconBadgeNumber = 0;
+    
+    
+    if (isJustOpened==YES && localNotification) {
+        
+        [self openAlarmAlert];
+        isJustOpened = NO;
+        
+    }
+    
 }
+
+
+// before trigger open alarm alert
+// we need to have userinfo first
+
+- (void)openAlarmAlert{
+    
+    
+    
+    UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
+    
+
+    
+    if (!alarmAlertVC){
+        alarmAlertVC = [storyboard instantiateViewControllerWithIdentifier:@"AlarmAlertVC"];
+        [[[[UIApplication sharedApplication] keyWindow] rootViewController] presentViewController:alarmAlertVC animated:YES completion:^{
+            alarmAlertVC = nil;
+        }];
+       
+    }
+    
+    
+    UILocalNotification *notification = [NotificationManager notificationFromAlarmID:localNotification.userInfo[@"alarmID"]];
+    
+    // for repeating alarm we have to reschedule on the next week too!
+    BOOL isRepeating = [notification.userInfo[@"isRepeating"] boolValue];
+    if (isRepeating) {
+        notification.fireDate = [NotificationManager dateForNextWeek:notification.fireDate];
+        [[UIApplication sharedApplication] scheduleLocalNotification:notification];
+    }
+    
+    // for all notification that showed up, why must we kept you
+    // you are cancelled, thanks for reminding.
+    [[UIApplication sharedApplication] cancelLocalNotification:notification];
+}
+
+
+- (void)application:(UIApplication *)application didReceiveLocalNotification:(UILocalNotification *)notification
+{
+ 
+    
+    // opened from clicking banner
+    // or from notification center
+    // or from list
+    // when open a notfication we can just stop it. because it was setted every single minute
+
+    
+    localNotification = notification;
+    [self openAlarmAlert];
+    // reschedule back?
+
+//  [[NSNotificationCenter defaultCenter] postNotificationName:@"didReceivedLocalNotification" object:notification userInfo:@{@"UILocalNotification":notification}];
+    
+}
+
+- (void)applicationWillResignActive:(UIApplication *)application {
+    
+}
+
+
 
 - (void)applicationWillTerminate:(UIApplication *)application {
-    // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
-    // Saves changes in the application's managed object context before the application terminates.
-    [self saveContext];
+
+    [[DBConnection sharedInstance] saveContext];
 }
 
 #pragma mark - Split view
 
-- (BOOL)splitViewController:(UISplitViewController *)splitViewController collapseSecondaryViewController:(UIViewController *)secondaryViewController ontoPrimaryViewController:(UIViewController *)primaryViewController {
-    if ([secondaryViewController isKindOfClass:[UINavigationController class]] && [[(UINavigationController *)secondaryViewController topViewController] isKindOfClass:[DetailViewController class]] && ([(DetailViewController *)[(UINavigationController *)secondaryViewController topViewController] detailItem] == nil)) {
-        // Return YES to indicate that we have handled the collapse by doing nothing; the secondary controller will be discarded.
-        return YES;
-    } else {
-        return NO;
-    }
-}
 
-#pragma mark - Core Data stack
-
-@synthesize managedObjectContext = _managedObjectContext;
-@synthesize managedObjectModel = _managedObjectModel;
-@synthesize persistentStoreCoordinator = _persistentStoreCoordinator;
-
-- (NSURL *)applicationDocumentsDirectory {
-    // The directory the application uses to store the Core Data store file. This code uses a directory named "com.irekasoft.Alarms" in the application's documents directory.
-    return [[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask] lastObject];
-}
-
-- (NSManagedObjectModel *)managedObjectModel {
-    // The managed object model for the application. It is a fatal error for the application not to be able to find and load its model.
-    if (_managedObjectModel != nil) {
-        return _managedObjectModel;
-    }
-    NSURL *modelURL = [[NSBundle mainBundle] URLForResource:@"Alarms" withExtension:@"momd"];
-    _managedObjectModel = [[NSManagedObjectModel alloc] initWithContentsOfURL:modelURL];
-    return _managedObjectModel;
-}
-
-- (NSPersistentStoreCoordinator *)persistentStoreCoordinator {
-    // The persistent store coordinator for the application. This implementation creates and return a coordinator, having added the store for the application to it.
-    if (_persistentStoreCoordinator != nil) {
-        return _persistentStoreCoordinator;
-    }
+- (void)applicationDidEnterBackground:(UIApplication *)application{
     
-    // Create the coordinator and store
+    // this code will make the alarm works even when the
+    //    app is silent
     
-    _persistentStoreCoordinator = [[NSPersistentStoreCoordinator alloc] initWithManagedObjectModel:[self managedObjectModel]];
-    NSURL *storeURL = [[self applicationDocumentsDirectory] URLByAppendingPathComponent:@"Alarms.sqlite"];
-    NSError *error = nil;
-    NSString *failureReason = @"There was an error creating or loading the application's saved data.";
-    if (![_persistentStoreCoordinator addPersistentStoreWithType:NSSQLiteStoreType configuration:nil URL:storeURL options:nil error:&error]) {
-        // Report any error we got.
-        NSMutableDictionary *dict = [NSMutableDictionary dictionary];
-        dict[NSLocalizedDescriptionKey] = @"Failed to initialize the application's saved data";
-        dict[NSLocalizedFailureReasonErrorKey] = failureReason;
-        dict[NSUnderlyingErrorKey] = error;
-        error = [NSError errorWithDomain:@"YOUR_ERROR_DOMAIN" code:9999 userInfo:dict];
-        // Replace this with code to handle the error appropriately.
-        // abort() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-        NSLog(@"Unresolved error %@, %@", error, [error userInfo]);
-        abort();
-    }
+    NSLog(@"enter bg");
     
-    return _persistentStoreCoordinator;
+    [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback error: nil];
+ 
+    UInt32 sessionCategory = kAudioSessionCategory_AmbientSound;
+    AudioSessionSetProperty(kAudioSessionProperty_AudioCategory, sizeof(sessionCategory), &sessionCategory);
+    
 }
 
-
-- (NSManagedObjectContext *)managedObjectContext {
-    // Returns the managed object context for the application (which is already bound to the persistent store coordinator for the application.)
-    if (_managedObjectContext != nil) {
-        return _managedObjectContext;
-    }
-    
-    NSPersistentStoreCoordinator *coordinator = [self persistentStoreCoordinator];
-    if (!coordinator) {
-        return nil;
-    }
-    _managedObjectContext = [[NSManagedObjectContext alloc] init];
-    [_managedObjectContext setPersistentStoreCoordinator:coordinator];
-    return _managedObjectContext;
-}
-
-#pragma mark - Core Data Saving support
-
-- (void)saveContext {
-    NSManagedObjectContext *managedObjectContext = self.managedObjectContext;
-    if (managedObjectContext != nil) {
-        NSError *error = nil;
-        if ([managedObjectContext hasChanges] && ![managedObjectContext save:&error]) {
-            // Replace this implementation with code to handle the error appropriately.
-            // abort() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-            NSLog(@"Unresolved error %@, %@", error, [error userInfo]);
-            abort();
-        }
-    }
-}
 
 @end
